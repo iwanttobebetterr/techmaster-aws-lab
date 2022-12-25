@@ -35,6 +35,36 @@ module "public_ec2_za" {
   vpc_security_group_ids = [module.ec2_security_group.security_group_id]
   subnet_id              = element(module.vpc.public_subnets, 0)
 
+  user_data = <<-EOT
+  Content-Type: multipart/mixed; boundary="//"
+  MIME-Version: 1.0
+
+  --//
+  Content-Type: text/cloud-config; charset="us-ascii"
+  MIME-Version: 1.0
+  Content-Transfer-Encoding: 7bit
+  Content-Disposition: attachment; filename="cloud-config.txt"
+
+  #cloud-config
+  cloud_final_modules:
+  - [scripts-user, always]
+
+  --//
+  Content-Type: text/x-shellscript; charset="us-ascii"
+  MIME-Version: 1.0
+  Content-Transfer-Encoding: 7bit
+  Content-Disposition: attachment; filename="userdata.txt"
+
+  #!/bin/bash
+  sudo su
+  echo 'Your name:<b>Pham Hoang Anh</b><br>' > index.html
+  echo 'Host name:<b> ' $HOSTNAME  '</b><br>' >> index.html
+  echo 'Instance id:<b> ' `wget -q -O - http://169.254.169.254/latest/meta-data/instance-id` '</b><br>' >> index.html
+  echo 'Availability zone: <b>' `wget -q -O - http://169.254.169.254/latest/meta-data/placement/availability-zone` '</b><br>' >> index.html
+  echo 'Instance type: <b>' `wget -q -O - http://169.254.169.254/latest/meta-data/instance-type` '</b><br>' >> index.html
+  python3 -m http.server 80
+  EOT
+
   tags = {
     Terraform   = "true"
     Environment = var.env
