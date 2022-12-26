@@ -1,9 +1,7 @@
 # tạo ssh keypair cho ec2 instance, https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/key_pair
 resource "aws_key_pair" "ssh_key_pair" {
   key_name = "${var.prefix}-ssh"
-
-  # replace the below with your public key
-  public_key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINOLYKFpjL2umZV7YYJ+OMCUBVksoUWO79wFcGDzxtSs anhph.dev@gmail.com"
+  public_key = var.public_ssh_key
 }
 
 # https://registry.terraform.io/modules/terraform-aws-modules/security-group/aws/4.9.0
@@ -22,6 +20,7 @@ module "ec2_security_group" {
 
 ## EC2 https://registry.terraform.io/modules/terraform-aws-modules/ec2-instance/aws
 
+# Homework 1
 # tạo ec2 instances ở public subnet, zone-a
 module "public_ec2_za" {
   source  = "terraform-aws-modules/ec2-instance/aws"
@@ -71,6 +70,38 @@ module "public_ec2_za" {
   }
 }
 
+# Homework 2
+# tạo ec2 instances ở public subnet, zone-b
+module "public_ec2_zb" {
+  source  = "terraform-aws-modules/ec2-instance/aws"
+  version = "~> 3.0"
+
+  name = "${var.prefix}-${var.env}-public-web-zb"
+
+  ami                    = "ami-005835d578c62050d"
+  instance_type          = "t2.micro"
+  key_name               = aws_key_pair.ssh_key_pair.key_name
+  vpc_security_group_ids = [module.ec2_security_group.security_group_id]
+  subnet_id              = element(module.vpc.public_subnets, 1)
+
+  user_data = <<-EOT
+  #!/bin/bash
+  sudo su
+  yum update -y
+  yum install git -y
+  amazon-linux-extras install nginx1
+  cd /usr/share/nginx
+  git clone https://github.com/iwanttobebetterr/techmaster-aws-lab.git
+  systemctl enable nginx.service
+  systemctl start nginx.service
+  EOT
+
+  tags = {
+    Terraform   = "true"
+    Environment = var.env
+  }
+}
+
 # tạo ec2 instances ở private subnet, zone-a
 module "private_ec2_za" {
   source  = "terraform-aws-modules/ec2-instance/aws"
@@ -90,9 +121,14 @@ module "private_ec2_za" {
   }
 }
 
-output "ec2_public_id" {
-  description = "The ID of the public instance"
+output "ec2_za_public_id" {
+  description = "The ID of the public instance za"
   value       = module.public_ec2_za.id
+}
+
+output "ec2_zb_public_id" {
+  description = "The ID of the public instance zb"
+  value       = module.public_ec2_zb.id
 }
 
 output "ec2_private_id" {
